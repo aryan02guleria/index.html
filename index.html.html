@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Heart health risk dashboard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:wght@500;600&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#EEF3F5;--surface:#FFFFFF;--ink:#12263A;--muted:#5B6F80;--line:#D5DFE5;--teal:#0F766E;--rose:#B42343;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0E1A24;--surface:#15242F;--ink:#E6EEF3;--muted:#9DB0BE;--line:#274051;--teal:#3FB8AC;--rose:#F0647F;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0E1A24;--surface:#15242F;--ink:#E6EEF3;--muted:#9DB0BE;--line:#274051;--teal:#3FB8AC;--rose:#F0647F;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 'Public Sans',system-ui,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 20px 40px}
+h1{font:600 30px/1.15 'Newsreader',Georgia,serif;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 20px}
+.filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:20px}
+label{display:flex;flex-direction:column;font-size:13px;color:var(--muted);gap:4px}
+select,button{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 10px;min-height:36px}
+button{cursor:pointer}
+select:focus-visible,button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:20px}
+.kpi{padding:16px 18px;border-left:1px solid var(--line)}
+.kpi:first-child{border-left:0}
+.kpi b{display:block;font:600 30px/1.1 'Newsreader',Georgia,serif}
+.kpi span{font-size:13px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:3fr 2fr;gap:20px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;min-width:0}
+.panel.wide{grid-column:1/-1}
+.panel h2{font:600 18px/1.3 'Newsreader',Georgia,serif;margin:0 0 2px}
+.panel p{margin:0;color:var(--muted);font-size:13px}
+.ctl{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 12px}
+.box{position:relative;height:300px}
+.box.tall{height:360px}
+.note{margin-top:20px;color:var(--muted);font-size:13px;max-width:70ch}
+@media(max-width:860px){.kpis{grid-template-columns:repeat(2,1fr)}.kpi:nth-child(odd){border-left:0}.kpi:nth-child(n+3){border-top:1px solid var(--line)}.grid{grid-template-columns:1fr}.panel.wide{grid-column:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Heart health risk dashboard</h1>
+<p class="sub" id="sub"></p>
+<div class="filters">
+<label>Sex<select id="f-Sex"></select></label>
+<label>Region<select id="f-region"></select></label>
+<label>Income level<select id="f-income_level"></select></label>
+<button id="reset" type="button">Clear filters</button>
+</div>
+<div class="kpis">
+<div class="kpi"><b id="k1">-</b><span>People</span></div>
+<div class="kpi"><b id="k2">-</b><span>Average age</span></div>
+<div class="kpi"><b id="k3">-</b><span>Average BMI</span></div>
+<div class="kpi"><b id="k4">-</b><span>Average resting BP</span></div>
+<div class="kpi"><b id="k5">-</b><span>Average cholesterol</span></div>
+<div class="kpi"><b id="k6">-</b><span>Previous heart events</span></div>
+</div>
+<div class="grid">
+<section class="panel">
+<h2 id="t1"></h2>
+<p>Each bar shows the group size (n). Change the measure or the grouping below.</p>
+<div class="ctl">
+<label>Measure<select id="met"></select></label>
+<label>Group by<select id="grp"></select></label>
+</div>
+<div class="box"><canvas id="c1"></canvas></div>
+</section>
+<section class="panel">
+<h2>Share of people with each condition</h2>
+<p>Based on the people currently shown.</p>
+<div class="box" style="margin-top:46px"><canvas id="c3"></canvas></div>
+</section>
+<section class="panel wide">
+<h2>Blood pressure and cholesterol</h2>
+<p>Each dot is one person, colored by whether they have hypertension.</p>
+<div class="box tall" style="margin-top:12px"><canvas id="c2"></canvas></div>
+</section>
+</div>
+<p class="note">This dataset covers 49 people and records one previous heart event, so group rates shift a lot with each person. Use the charts to spot patterns worth checking, not to draw conclusions.</p>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const D={"h":["Age","Sex","BMI","region","income_level","smoking_status","alcohol_intake","physical_activity","diet_quality","sleep_hours","stress_level","diabetes","hypertension","family_history","previous_heart_event","resting_bp","cholesterol"],"r":[[57,"Male",27.1,"Northeast","Middle","Never","Moderate","Light",7,5.7,6,1,0,1,0,165,204],[40,"Female",29.0,"Northeast","Low","Never","Non-drinker","Sedentary",1,8.0,7,0,0,1,0,99,173],[63,"Female",40.1,"Southeast","High","Never","Moderate","Sedentary",6,5.5,5,0,0,0,0,138,209],[66,"Female",35.5,"West","Middle","Never","Heavy","Sedentary",10,7.4,5,0,1,0,0,164,187],[29,"Female",19.8,"Northeast","High","Current","Non-drinker","Sedentary",8,8.3,8,0,0,1,0,135,247],[37,"Female",24.5,"Southeast","High","Never","Non-drinker","Light",8,7.9,10,0,0,0,0,138,145],[55,"Female",29.4,"Southeast","High","Never","Moderate","Very Active",7,7.8,6,0,0,0,0,158,275],[49,"Female",27.5,"West","Middle","Never","Moderate","Light",3,6.6,6,0,0,1,0,117,202],[53,"Male",18.2,"Southeast","High","Never","Moderate","Sedentary",7,7.3,5,0,0,1,0,122,153],[42,"Male",32.2,"Southwest","Middle","Former","Non-drinker","Light",4,7.5,5,0,1,1,0,139,234],[65,"Female",32.0,"Northeast","High","Former","Heavy","Sedentary",5,5.6,5,0,0,0,0,119,226],[64,"Male",31.3,"West","High","Never","Moderate","Active",4,6.9,2,0,0,1,0,138,173],[54,"Male",28.5,"Southwest","Middle","Current","Moderate","Light",4,6.7,9,0,1,0,0,151,248],[68,"Female",17.1,"West","Middle","Former","Non-drinker","Light",6,5.3,5,0,0,0,0,114,169],[60,"Female",19.4,"Southeast","Low","Never","Moderate","Light",5,6.6,5,0,0,0,0,126,221],[42,"Male",20.8,"Midwest","Low","Never","Non-drinker","Sedentary",4,7.4,5,0,0,0,0,130,130],[58,"Male",27.8,"Southwest","High","Never","Moderate","Light",9,8.5,7,0,1,0,0,177,146],[41,"Male",19.2,"Midwest","Low","Never","Moderate","Sedentary",5,7.1,7,0,0,0,0,141,142],[65,"Female",30.5,"Southeast","Low","Former","Heavy","Light",5,5.8,7,0,1,0,0,154,215],[53,"Male",25.8,"Southeast","High","Current","Moderate","Active",6,5.6,8,0,0,1,0,125,236],[51,"Male",28.1,"Midwest","Low","Never","Heavy","Active",5,5.9,9,0,0,0,0,134,204],[45,"Male",34.9,"Midwest","Middle","Former","Moderate","Active",9,6.5,9,0,0,0,0,119,235],[69,"Female",22.0,"West","Low","Never","Non-drinker","Active",8,7.4,7,1,0,0,0,135,160],[51,"Female",28.9,"West","Middle","Never","Moderate","Light",7,5.7,6,0,1,0,0,194,254],[48,"Male",36.1,"Southwest","Middle","Never","Non-drinker","Light",9,7.9,7,0,0,1,0,140,198],[49,"Male",26.2,"Midwest","Low","Never","Non-drinker","Sedentary",3,5.8,4,0,1,0,0,151,219],[60,"Female",20.5,"West","High","Current","Non-drinker","Light",5,6.3,3,1,1,0,0,154,157],[58,"Male",27.0,"Southeast","Middle","Current","Non-drinker","Sedentary",6,4.5,6,0,0,0,0,139,226],[59,"Male",33.5,"Northeast","Middle","Never","Moderate","Light",4,6.0,10,0,1,0,0,149,209],[59,"Male",24.9,"West","Low","Never","Moderate","Light",4,7.5,6,0,0,1,0,146,246],[80,"Male",32.9,"Northeast","Middle","Never","Moderate","Light",7,7.4,2,1,1,1,0,174,263],[48,"Male",17.9,"West","Middle","Never","Moderate","Sedentary",2,6.2,6,0,1,0,0,127,251],[47,"Male",20.4,"West","Low","Never","Non-drinker","Very Active",2,5.9,6,0,0,1,0,109,179],[43,"Male",29.3,"Northeast","High","Former","Non-drinker","Light",6,8.3,5,0,1,0,1,126,179],[62,"Female",26.8,"Southwest","High","Never","Moderate","Light",5,7.5,4,0,0,0,0,122,186],[68,"Female",35.3,"Midwest","Middle","Never","Heavy","Light",4,9.1,10,0,1,1,0,146,231],[52,"Male",33.7,"Southeast","Middle","Current","Non-drinker","Active",4,5.9,8,0,0,0,0,166,273],[43,"Male",20.0,"Northeast","Low","Current","Moderate","Light",3,6.9,7,0,1,0,0,165,292],[43,"Male",23.5,"Southwest","Middle","Never","Moderate","Active",7,7.9,6,0,1,1,0,179,195],[62,"Female",34.3,"Northeast","Middle","Current","Moderate","Sedentary",4,6.5,6,0,1,0,0,108,246],[63,"Male",23.4,"Southeast","Low","Never","Moderate","Active",8,6.3,8,0,0,0,0,123,260],[61,"Female",25.7,"Midwest","Middle","Former","Moderate","Light",7,6.3,4,0,0,0,0,128,169],[45,"Male",22.1,"West","Middle","Never","Moderate","Active",9,6.5,3,0,1,0,0,130,180],[57,"Male",21.2,"Southeast","High","Never","Non-drinker","Light",7,9.7,9,0,0,0,0,88,168],[55,"Female",25.1,"Southeast","Middle","Never","Heavy","Light",8,6.8,5,0,0,0,0,129,185],[56,"Female",26.8,"Northeast","Low","Never","Heavy","Sedentary",9,5.2,7,0,1,0,0,118,172],[65,"Female",33.0,"Southwest","Middle","Never","Moderate","Sedentary",7,6.7,8,0,0,1,0,117,174],[56,"Male",31.2,"Southwest","High","Former","Non-drinker","Active",10,6.0,2,0,0,0,0,107,268],[62,"Female",27.0,"Northeast","Middle","Never","Non-drinker","Sedentary",6,5.6,3,0,0,0,0,105,215]]};
+const rows=D.r.map(a=>Object.fromEntries(D.h.map((k,i)=>[k,a[i]])));
+rows.forEach(r=>{
+  r.age_group=r.Age<30?'Under 30':r.Age<45?'30\u201344':r.Age<60?'45\u201359':'60+';
+  r.bmi_category=r.BMI<18.5?'Underweight':r.BMI<25?'Normal':r.BMI<30?'Overweight':'Obese';
+});
+const $=id=>document.getElementById(id);
+const avg=(a,k)=>a.length?a.reduce((s,r)=>s+r[k],0)/a.length:0;
+const GROUPS={
+  smoking_status:{l:'Smoking status',o:['Never','Former','Current']},
+  age_group:{l:'Age group',o:['Under 30','30\u201344','45\u201359','60+']},
+  bmi_category:{l:'BMI category',o:['Underweight','Normal','Overweight','Obese']},
+  physical_activity:{l:'Physical activity',o:['Sedentary','Light','Active','Very Active']},
+  alcohol_intake:{l:'Alcohol intake',o:['Non-drinker','Moderate','Heavy']},
+  income_level:{l:'Income level',o:['Low','Middle','High']},
+  region:{l:'Region',o:['Midwest','Northeast','Southeast','Southwest','West']},
+  Sex:{l:'Sex',o:['Female','Male']}
+};
+const METRICS={
+  resting_bp:{l:'Average resting BP',f:a=>avg(a,'resting_bp'),u:'',d:0},
+  cholesterol:{l:'Average cholesterol',f:a=>avg(a,'cholesterol'),u:'',d:0},
+  BMI:{l:'Average BMI',f:a=>avg(a,'BMI'),u:'',d:1},
+  stress_level:{l:'Average stress level',f:a=>avg(a,'stress_level'),u:'',d:1},
+  sleep_hours:{l:'Average sleep hours',f:a=>avg(a,'sleep_hours'),u:'',d:1},
+  hypertension:{l:'Hypertension rate',f:a=>avg(a,'hypertension')*100,u:'%',d:0,pct:true},
+  diabetes:{l:'Diabetes rate',f:a=>avg(a,'diabetes')*100,u:'%',d:0,pct:true}
+};
+const FILTERS=['Sex','region','income_level'];
+const state={Sex:'',region:'',income_level:''};
+function fill(id,opts,first){
+  const s=$(id);
+  s.innerHTML=(first?'<option value="">'+first+'</option>':'')+opts.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('');
+}
+FILTERS.forEach(k=>{
+  const vals=[...new Set(rows.map(r=>r[k]))].sort();
+  fill('f-'+k,vals.map(v=>[v,v]),'All');
+  $('f-'+k).addEventListener('change',e=>{state[k]=e.target.value;render();});
+});
+fill('met',Object.entries(METRICS).map(([k,m])=>[k,m.l]));
+fill('grp',Object.entries(GROUPS).map(([k,g])=>[k,g.l]));
+$('met').value='resting_bp';
+$('grp').value='smoking_status';
+$('met').addEventListener('change',render);
+$('grp').addEventListener('change',render);
+$('reset').addEventListener('click',()=>{FILTERS.forEach(k=>{state[k]='';$('f-'+k).value='';});render();});
+
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const charts={};
+function draw(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart($(id),cfg);}
+const vp=(fmt,horiz)=>({id:'vp',afterDatasetsDraw(c){
+  const x=c.ctx;x.save();x.fillStyle=css('--ink');x.font='600 12px '+Chart.defaults.font.family;
+  c.getDatasetMeta(0).data.forEach((b,i)=>{
+    const v=c.data.datasets[0].data[i];
+    if(horiz){x.textAlign='left';x.textBaseline='middle';x.fillText(fmt(v),b.x+6,b.y);}
+    else{x.textAlign='center';x.textBaseline='bottom';x.fillText(fmt(v),b.x,b.y-4);}
+  });
+  x.restore();
+}});
+function barOpts(horiz,max){
+  const line=css('--line'),mu=css('--muted');
+  const val={grid:{color:line},border:{color:line},ticks:{color:mu},beginAtZero:true,max:max};
+  const cat={grid:{display:false},border:{color:line},ticks:{color:mu}};
+  return{indexAxis:horiz?'y':'x',responsive:true,maintainAspectRatio:false,
+    layout:{padding:horiz?{right:44}:{top:22}},
+    plugins:{legend:{display:false}},
+    scales:horiz?{x:val,y:cat}:{y:val,x:cat}};
+}
+function render(){
+  Chart.defaults.font.family="'Public Sans',system-ui,sans-serif";
+  Chart.defaults.color=css('--muted');
+  const f=rows.filter(r=>FILTERS.every(k=>!state[k]||r[k]===state[k]));
+  const n=f.length;
+  const fm=(v,d)=>n?v.toFixed(d):'\u2013';
+  $('sub').textContent=n+' of '+rows.length+' people shown';
+  $('k1').textContent=n;
+  $('k2').textContent=fm(avg(f,'Age'),0);
+  $('k3').textContent=fm(avg(f,'BMI'),1);
+  $('k4').textContent=fm(avg(f,'resting_bp'),0);
+  $('k5').textContent=fm(avg(f,'cholesterol'),0);
+  $('k6').textContent=f.reduce((s,r)=>s+r.previous_heart_event,0)+' of '+n;
+
+  const gk=$('grp').value,G=GROUPS[gk],M=METRICS[$('met').value];
+  $('t1').textContent=M.l+' by '+G.l.toLowerCase();
+  const cats=G.o.map(o=>({o:o,a:f.filter(r=>r[gk]===o)})).filter(c=>c.a.length);
+  draw('c1',{type:'bar',
+    data:{labels:cats.map(c=>c.o+' (n='+c.a.length+')'),
+      datasets:[{data:cats.map(c=>+M.f(c.a).toFixed(M.d)),backgroundColor:css('--teal'),borderRadius:4,maxBarThickness:64}]},
+    options:barOpts(false,M.pct?100:undefined),
+    plugins:[vp(v=>v+M.u,false)]});
+
+  const P=[['Hypertension','hypertension'],['Diabetes','diabetes'],['Family history','family_history'],['Previous heart event','previous_heart_event']];
+  draw('c3',{type:'bar',
+    data:{labels:P.map(p=>p[0]),
+      datasets:[{data:P.map(p=>+(avg(f,p[1])*100).toFixed(0)),backgroundColor:P.map((p,i)=>i===3?css('--rose'):css('--teal')),borderRadius:4,barThickness:24}]},
+    options:barOpts(true,100),
+    plugins:[vp(v=>v+'%',true)]});
+
+  const pts=h=>f.filter(r=>r.hypertension===h).map(r=>({x:r.cholesterol,y:r.resting_bp}));
+  const line=css('--line'),mu=css('--muted');
+  const ax=t=>({title:{display:true,text:t,color:mu},grid:{color:line},border:{color:line},ticks:{color:mu}});
+  draw('c2',{type:'scatter',
+    data:{datasets:[
+      {label:'No hypertension',data:pts(0),backgroundColor:css('--teal'),pointRadius:5},
+      {label:'Hypertension',data:pts(1),backgroundColor:css('--rose'),pointRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{usePointStyle:true,color:css('--ink')}}},
+      scales:{x:ax('Cholesterol'),y:ax('Resting blood pressure (mmHg)')}}});
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',render);
+render();
+</script>
+</body>
+</html>
